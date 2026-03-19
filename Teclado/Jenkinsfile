@@ -4,7 +4,7 @@ pipeline {
     environment {
         NGINX_IP = '20.84.54.45'
         NGINX_USER = 'adminuser'
-        NGINX_PASS = 'Xxpaladin$05'
+        NGINX_PASS = '########'
         
         SONAR_URL = 'http://74.235.50.185:9000'
     }
