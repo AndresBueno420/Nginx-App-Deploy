@@ -1,0 +1,8 @@
+git
+workflow-aggregator
+pipeline-stage-view
+blueocean
+sonar
+ssh-slaves
+credentials
+pipeline-utility-steps

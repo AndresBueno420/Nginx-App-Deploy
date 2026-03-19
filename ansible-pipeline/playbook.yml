@@ -1,0 +1,126 @@
+---
+- name: Instalar y configurar Nginx
+  hosts: nginx
+  become: true
+  tasks:
+    - name: Actualizar cache de paquetes
+      apt:
+        update_cache: yes
+
+    - name: Instalar Nginx
+      apt:
+        name: nginx
+        state: present
+
+    - name: Iniciar servicio Nginx
+      systemd:
+        name: nginx
+        state: started
+        enabled: yes
+
+    - name: Cambiar propietario de /var/www/html
+      file:
+        path: /var/www/html
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+        recurse: yes
+
+- name: Instalación de Docker y Docker Compose en Ubuntu
+  hosts: jenkins
+  become: true
+  
+  tasks:
+    # Actualizar el cache de paquetes
+    - name: Actualizar el cache de paquetes
+      apt:
+        update_cache: yes
+
+    # Instalar dependencias para Docker
+    - name: Instalar dependencias para Docker
+      apt:
+        name: 
+          - apt-transport-https
+          - ca-certificates
+          - curl
+          - gnupg-agent
+          - software-properties-common
+
+    # Agregar la clave GPG oficial de Docker
+    - name: Agregar la clave GPG oficial de Docker
+      apt_key:
+        url: https://download.docker.com/linux/ubuntu/gpg
+        state: present
+
+    # Agregar el repositorio de Docker al sources.list.d
+    - name: Agregar el repositorio de Docker al sources.list.d
+      apt_repository:
+        repo: deb [arch=amd64] https://download.docker.com/linux/ubuntu {{ ansible_lsb.codename }} stable
+        state: present
+
+    # Actualizar el cache de paquetes de nuevo (para que encuentre el paquete de Docker)
+    - name: Actualizar el cache de paquetes de nuevo (para que encuentre el paquete de Docker)
+      apt:
+        update_cache: yes
+
+    # Instalar Docker
+    - name: Instalar Docker
+      apt:
+        name: docker-ce
+        state: present
+
+    # Añadir el usuario actual al grupo de Docker
+    - name: Añadir el usuario actual al grupo de Docker
+      user:
+        name: "{{ ansible_user }}"
+        groups: docker
+        append: yes
+
+    # Instalar Docker Compose
+    - name: Instalar Docker Compose V2
+      shell: |
+        mkdir -p /usr/local/lib/docker/cli-plugins
+        curl -SL "https://github.com/docker/compose/releases/download/v2.24.6/docker-compose-linux-x86_64" \
+          -o /usr/local/lib/docker/cli-plugins/docker-compose
+        chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
+      args:
+        creates: /usr/local/lib/docker/cli-plugins/docker-compose
+
+    # Crear symlink para mantener compatibilidad con "docker-compose" (con guion)
+    - name: Crear symlink docker-compose
+      file:
+        src: /usr/local/lib/docker/cli-plugins/docker-compose
+        dest: /usr/local/bin/docker-compose
+        state: link
+    - name: Establecer vm.max_map_count en el kernel
+      sysctl:
+        name: vm.max_map_count
+        value: "262144"
+        state: present
+        reload: yes
+    
+    - name: Copiar archivo de configuración de Nginx
+      copy:
+        src: docker-compose.yml
+        dest: /home/{{ ansible_user }}/docker-compose.yml
+    
+    - name: Copiar plugins.txt
+      copy:
+        src: plugins.txt
+        dest: /home/{{ ansible_user }}/plugins.txt
+
+    # Ejecutar un archivo docker-compose.yml
+    - name: Ejecutar docker-compose.yml
+      command: docker-compose up -d
+      args:
+        chdir: /home/{{ ansible_user }}/
+      become: true
+
+    - name: Instalar plugins jenkins
+      command: docker exec jenkins jenkins-plugin-cli --plugin-file /plugins.txt
+      become: true
+      notify: restart jenkins
+
+  handlers:
+    - name: restart jenkins
+      command: sudo docker restart jenkins
+      become: true

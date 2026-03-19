@@ -1,0 +1,45 @@
+pipeline {
+    agent any
+
+    environment {
+        NGINX_IP = '20.84.54.45'
+        NGINX_USER = 'adminuser'
+        NGINX_PASS = 'Xxpaladin$05'
+        
+        SONAR_URL = 'http://74.235.50.185:9000'
+    }
+
+    stages {
+        stage('1. Clonar Repositorio') {
+            steps {
+                git branch: 'main', url: 'https://github.com/Issblann/Teclado'
+            }
+        }
+
+        stage('2. Análisis de Calidad (SonarQube)') {
+            steps {
+                withCredentials([string(credentialsId: 'sonar-token', variable: 'SONAR_TOKEN')]) {
+                    sh '''
+                        wget -q https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-4.8.0.2856-linux.zip
+                        unzip -q -o sonar-scanner-cli-4.8.0.2856-linux.zip
+                        
+                        ./sonar-scanner-4.8.0.2856-linux/bin/sonar-scanner \
+                          -Dsonar.projectKey=AppTeclado \
+                          -Dsonar.sources=. \
+                          -Dsonar.host.url=${SONAR_URL} \
+                          -Dsonar.login=${SONAR_TOKEN}
+                    '''
+                }
+            }
+        }
+
+        stage('3. Despliegue Estático (Nginx)') {
+            steps {
+                
+                sh '''
+                    sshpass -p "${NGINX_PASS}" scp -o StrictHostKeyChecking=no -r ./* ${NGINX_USER}@${NGINX_IP}:/var/www/html/
+                '''
+            }
+        }
+    }
+}
